@@ -1,0 +1,4 @@
+CFLAGS = -std=c99 -Wall -Wextra -Werror -pedantic
+PWD := $(shell pwd)
+all: 
+	gcc $(CFLAGS) src/main.c -o chip8 `sdl2-config --cflags --libs`
