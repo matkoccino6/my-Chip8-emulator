@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
     while(true){
         SDL_Event event;
         while(SDL_PollEvent(&event)){
-            if (event.type == SDL_KEYDOWN)
+            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
             {
                 exit(EXIT_SUCCESS);
             }
