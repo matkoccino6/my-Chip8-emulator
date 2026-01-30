@@ -41,6 +41,7 @@ void emulate_instruction(chip8_t* chip8){
     case 0x00:
         if (chip8->instruction.NN == 0xE0)
         {
+            // CLEAR DISP
             memset(&chip8->display[0], false, sizeof chip8->display);
         } else if (chip8->instruction.NN == 0xEE){
             // RET
@@ -56,17 +57,35 @@ void emulate_instruction(chip8_t* chip8){
         *chip8->stack_pointer++ = chip8->program_counter;
         chip8->program_counter = chip8->instruction.NNN;
         break;
-    case 0xA:
-        //set I
-        chip8->index_register = chip8->instruction.NNN;
+    case 0x3:
+        // If Vx == const Skip next instruction
+        if(chip8->registers[chip8->instruction.X] == chip8->instruction.NN)
+            chip8->program_counter += 2;
+        break;
+    case 0x4:
+        // If Vx != const Skip next instruction 
+        if(chip8->registers[chip8->instruction.X] != chip8->instruction.NN)
+            chip8->program_counter += 2;
+        break;
+    case 0x5:
+        // If Vx == Vy skip next instruction
+        if(chip8->registers[chip8->instruction.X] == chip8->registers[chip8->instruction.Y])
+            chip8->program_counter += 2;
         break;
     case 0x6:
+        // Set Vx to const
         chip8->registers[chip8->instruction.X] = chip8->instruction.NN;
         break;
     case 0x7:
+        // Add Vx by const
         chip8->registers[chip8->instruction.X] += chip8->instruction.NN;
         break;
+    case 0xA:
+        //set I to address NNN
+        chip8->index_register = chip8->instruction.NNN;
+        break;
     case 0xD:
+        // Display sprite 8bits wide N height starting on (X,Y) and XOR with Display pixels
         uint8_t X_coord = chip8->registers[chip8->instruction.X] & 63;
         uint8_t Y_coord = chip8->registers[chip8->instruction.Y] & 31;
         chip8->registers[0xF] = 0;
@@ -92,8 +111,14 @@ void emulate_instruction(chip8_t* chip8){
             if (++Y_coord >= 32) break;
         }
         break;
+    case 0xF:
+        if(chip8->instruction.NN == 0x1E){
+            // Adds Vx to I
+            chip8->index_register += chip8->registers[chip8->instruction.X];
+        }
+        break;
     default:
-        printf("Unimplemented instruction 0x%04x \n", chip8->instruction.opcode);
+        printf("Unimplemented instruction: 0x%04x, PC: 0x%04x\n", chip8->instruction.opcode, chip8->program_counter);
         break;
     }
     
@@ -188,7 +213,8 @@ int main(int argc, char* argv[]) {
     chip8_t chip8 = {
         0
     };
-    char romname[100] = "IBM Logo.ch8";
+    //char romname[100] = "./Test Roms/IBM Logo.ch8";
+    char * romname = argv[1];
     if(!loadRom(&chip8, romname)) exit(EXIT_FAILURE);
     while(true){
         SDL_Event event;
