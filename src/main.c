@@ -150,16 +150,16 @@ int loadRom(chip8_t* chip8, const char * romname){
 
 }
 void update_screen(const chip8_t chip8, SDL_Renderer* renderer){
-    SDL_Rect rect = {.x = 0, .y = 0, .w = 2, .h = 2};
+    SDL_Rect rect = {.x = 0, .y = 0, .w = 10, .h = 10};
     for (size_t i = 0; i < sizeof chip8.display; i++)
     {
-        rect.x = (i % 64) * 2;
-        rect.y = (i / 64) * 2;
+        rect.x = (i % 64) * 10;
+        rect.y = (i / 64) * 10;
         if(chip8.display[i]){
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
             SDL_RenderFillRect(renderer, &rect);
         } else{
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             SDL_RenderFillRect(renderer, &rect);
         }
     }
