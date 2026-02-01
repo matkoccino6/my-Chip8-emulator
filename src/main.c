@@ -48,7 +48,7 @@ void emulate_instruction(chip8_t* chip8){
     chip8->instruction.N = chip8->instruction.opcode & 0x0F;
     chip8->instruction.X = (chip8->instruction.opcode >> 8) & 0x0F;
     chip8->instruction.Y = (chip8->instruction.opcode >> 4) & 0x0F;
-    printf("Opcode: %X Program counter: %X Delay Timer: %d \n", chip8->instruction.opcode, chip8->program_counter, chip8->timer);
+    //printf("Opcode: %X Program counter: %X Delay Timer: %d \n", chip8->instruction.opcode, chip8->program_counter, chip8->timer);
     switch ((chip8->instruction.opcode >> 12) & 0x0F)
     {
     case 0x00:
@@ -92,6 +92,18 @@ void emulate_instruction(chip8_t* chip8){
     case 0x7:
         // Add Vx by const
         chip8->registers[chip8->instruction.X] += chip8->instruction.NN;
+        break;
+    case 0x8:
+        if(chip8->instruction.N == 0){
+            //Sets Vx to Vy
+            chip8->registers[chip8->instruction.X] = chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 2){
+            //Sets Vx to Vx & Vy
+            chip8->registers[chip8->instruction.X] &= chip8->registers[chip8->instruction.Y];
+        }
+        else
+            printf("Unimplemented instruction: 0x%04x, PC: 0x%04x\n", chip8->instruction.opcode, chip8->program_counter);       
         break;
     case 0xA:
         //set I to address NNN
@@ -144,7 +156,15 @@ void emulate_instruction(chip8_t* chip8){
         if(chip8->instruction.NN == 0x29){
             // Sets I to the digit font address, the digit thats to be represented onscreen corresponds to the value in Vx
             chip8->index_register = 0x50 + (5 * chip8->registers[chip8->instruction.X]);
-        } else {
+        } else
+        if(chip8->instruction.NN == 0x65){
+            //Fills registers V0 to VX with values from memory starting at I and going +1
+            for (size_t i = 0; i <= chip8->instruction.X; i++)
+            {
+                chip8->registers[i] = chip8->memory[chip8->index_register+i];
+            }
+        }
+        else {
             printf("Unimplemented instruction: 0x%04x, PC: 0x%04x\n", chip8->instruction.opcode, chip8->program_counter);
         }
         break;
