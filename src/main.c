@@ -28,17 +28,29 @@ void print_debug_info(chip8_t chip8){
 }
 #endif
 void input_handle(chip8_t* chip8){
-    bool any_pressed = false;
-    for (size_t i = 0; i < 16; i++)
+    static bool any_pressed = false;
+    static uint8_t key = 0xFF;
+    for (size_t i = 0; key == 0xFF && i < 16; i++)
     {
         if(chip8->keypad[i]){
-            chip8->registers[chip8->instruction.X] = i;
+            key = i;
             any_pressed = true;
+            //chip8->registers[chip8->instruction.X] = key;
             break;
         }
     }
     if(!any_pressed)
-        chip8->program_counter -= 2; 
+        chip8->program_counter -= 2;
+    else{
+        if(chip8->keypad[key])
+            chip8->program_counter -= 2;
+        else{
+            chip8->registers[chip8->instruction.X] = key;
+            key = 0xFF;
+            any_pressed = false;
+            return;
+        }
+    }
 }
 void emulate_instruction(chip8_t* chip8){
     chip8->instruction.opcode = (chip8->memory[chip8->program_counter] << 8) | chip8->memory[chip8->program_counter+1];
