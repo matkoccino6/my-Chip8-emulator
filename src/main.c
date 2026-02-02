@@ -1,27 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "SDL2/SDL.h"
-typedef struct{
-    uint16_t opcode;
-    uint16_t NNN; // 12 bit address
-    uint8_t NN; // 8 bit constant
-    uint8_t N; // 4bit constant
-    uint8_t X; // 4 bit register ids
-    uint8_t Y; //
-}instruction_t;
-typedef struct {
-    uint8_t memory[4096];
-    uint8_t registers[16];
-    uint16_t index_register;
-    uint16_t program_counter;
-    uint16_t stack[16];
-    uint16_t* stack_pointer;
-    uint8_t timer;
-    uint8_t sound_timer;
-    bool display[64*32];
-    uint8_t keypad[16];
-    instruction_t instruction;
-} chip8_t;
+#include "main.h"
+#include "input.h"
+
 #ifdef DEBUG
 void print_debug_info(chip8_t chip8){
 
@@ -35,7 +17,7 @@ void input_handle(chip8_t* chip8){
         if(chip8->keypad[i]){
             key = i;
             any_pressed = true;
-            //chip8->registers[chip8->instruction.X] = key;
+            
             break;
         }
     }
@@ -106,20 +88,81 @@ void emulate_instruction(chip8_t* chip8){
         chip8->registers[chip8->instruction.X] += chip8->instruction.NN;
         break;
     case 0x8:
-        if(chip8->instruction.N == 0){
+        if(chip8->instruction.N == 0x0){
             //Sets Vx to Vy
             chip8->registers[chip8->instruction.X] = chip8->registers[chip8->instruction.Y];
         } else
-        if(chip8->instruction.N == 2){
+        if(chip8->instruction.N == 0x1){
+            //Vx is bitwise OR Vx | Vy
+            chip8->registers[chip8->instruction.X] = chip8->registers[chip8->instruction.X] | chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 0x2){
             //Sets Vx to Vx & Vy
             chip8->registers[chip8->instruction.X] &= chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 0x3){
+            //Vx is bitwise XOR Vx ^ Vy
+            chip8->registers[chip8->instruction.X] = chip8->registers[chip8->instruction.X] ^ chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 0x4){
+            //Adds VY to VX. VF is set to 1 when there's an overflow, and to 0 when there is not.
+            if(chip8->registers[chip8->instruction.X] + chip8->registers[chip8->instruction.Y] < chip8->registers[chip8->instruction.X])
+                chip8->registers[0xF] = 1;
+            else
+                chip8->registers[0xF] = 0;
+            chip8->registers[chip8->instruction.X] += chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 0x5){
+            //Subtracts Vx Vx -= Vy VF is set to 1 when there is no underflow, and 0 if there is underflow
+            if(chip8->registers[chip8->instruction.X] < chip8->registers[chip8->instruction.Y])
+                chip8->registers[0xF] = 0;
+            else
+                chip8->registers[0xF] = 1;
+            chip8->registers[chip8->instruction.X] -= chip8->registers[chip8->instruction.Y];
+        } else
+        if(chip8->instruction.N == 0x6){
+            //Bit shift to the right, vf is = least bit of vx before shift
+            
+            uint8_t l_bit = chip8->registers[chip8->instruction.X] & 0x0001;
+            chip8->registers[chip8->instruction.X] >>= 1;
+            if(l_bit)
+                chip8->registers[0xF] = 1;
+            else
+                chip8->registers[0xF] = 0;
+        } else
+        if(chip8->instruction.N == 0x7){
+            //Sets VX to VY minus VX. VF is set to 0 when there's an underflow, and 1 when there is not. (i.e. VF set to 1 if VY >= VX)
+            if(chip8->registers[chip8->instruction.Y] < chip8->registers[chip8->instruction.X])
+                chip8->registers[0xF] = 0;
+            else
+                chip8->registers[0xF] = 1;
+            chip8->registers[chip8->instruction.X] = chip8->registers[chip8->instruction.Y] - chip8->registers[chip8->instruction.X];
+        } else
+        if(chip8->instruction.N == 0xE){
+            // Bit shift to the left, VF is equal to 1 if the most significant bit of Vx before shift is > 0
+            uint8_t m_bit = chip8->registers[chip8->instruction.X] & 0x80;
+            chip8->registers[chip8->instruction.X] <<= 1;
+            if(m_bit)
+                chip8->registers[0xF] = 1;
+            else
+                chip8->registers[0xF] = 0;
         }
         else
             printf("Unimplemented instruction: 0x%04x, PC: 0x%04x\n", chip8->instruction.opcode, chip8->program_counter);       
         break;
+    case 0x9:
+        // Cond if vx!=vy
+        if(chip8->registers[chip8->instruction.X] != chip8->registers[chip8->instruction.Y]){
+            chip8->program_counter += 2;
+        }
+        break;
     case 0xA:
         //set I to address NNN
         chip8->index_register = chip8->instruction.NNN;
+        break;
+    case 0xC:
+        //Randomly generate a number between 0 and 255 and & with NN const
+        chip8->registers[chip8->instruction.X] = (rand() % 255) & chip8->instruction.NN;
         break;
     case 0xD:
         // Display sprite 8bits wide N height starting on (X,Y) and XOR with Display pixels
@@ -168,6 +211,22 @@ void emulate_instruction(chip8_t* chip8){
         if(chip8->instruction.NN == 0x29){
             // Sets I to the digit font address, the digit thats to be represented onscreen corresponds to the value in Vx
             chip8->index_register = 0x50 + (5 * chip8->registers[chip8->instruction.X]);
+        } else
+        if (chip8->instruction.NN == 0x33){
+            //BCD representation of value in Vx stored in I, I+1, I+2
+            uint8_t Vx = chip8->registers[chip8->instruction.X];
+            //printf("%d BCD: %d %d %d \n", Vx, Vx/100, Vx / 10 % 10, Vx % 10);
+            chip8->memory[chip8->index_register] = Vx / 100;
+            chip8->memory[chip8->index_register+1] = Vx / 10 % 10;
+            chip8->memory[chip8->index_register+2] = Vx % 10;
+        } else
+        if(chip8->instruction.NN == 0x55){
+            //Store values from reg. V0 to VX into memory starting at I and increment by 1
+            for (size_t i = 0; i <= chip8->instruction.X; i++)
+            {
+                chip8->memory[chip8->index_register+i] = chip8->registers[i];
+            }
+            
         } else
         if(chip8->instruction.NN == 0x65){
             //Fills registers V0 to VX with values from memory starting at I and going +1
@@ -234,7 +293,7 @@ int loadRom(chip8_t* chip8, const char * romname){
     fclose(rom);
     chip8->program_counter = entry_point;
     chip8->stack_pointer = &chip8->stack[0];
-    chip8->timer = 255;
+    chip8->timer = 0;
     return 1;
 }
 void update_screen(const chip8_t* chip8, SDL_Renderer* renderer){
@@ -253,122 +312,6 @@ void update_screen(const chip8_t* chip8, SDL_Renderer* renderer){
     }
     
     SDL_RenderPresent(renderer);
-}
-void sdl_input_handle(chip8_t* chip8){
-    SDL_Event event;
-    while(SDL_PollEvent(&event)){
-        if (event.type == SDL_KEYDOWN){
-            switch(event.key.keysym.sym){
-                case SDLK_ESCAPE:
-                    exit(EXIT_SUCCESS);
-                    break;
-                case SDLK_1:
-                    chip8->keypad[0x1] = 1;
-                    break;
-                case SDLK_2:
-                    chip8->keypad[0x2] = 1;
-                    break;
-                case SDLK_3:
-                    chip8->keypad[0x3] = 1;
-                    break;
-                case SDLK_4:
-                    chip8->keypad[0xC] = 1;
-                    break;
-                case SDLK_q:
-                    chip8->keypad[0x4] = 1;
-                    break;
-                case SDLK_w:
-                    chip8->keypad[0x5] = 1;
-                    break;
-                case SDLK_e:
-                    chip8->keypad[0x6] = 1;
-                    break;
-                case SDLK_r:
-                    chip8->keypad[0xD] = 1;
-                    break;
-                case SDLK_a:
-                    chip8->keypad[0x7] = 1;
-                    break;
-                case SDLK_s:
-                    chip8->keypad[0x8] = 1;
-                    break;
-                case SDLK_d:
-                    chip8->keypad[0x9] = 1;
-                    break;
-                case SDLK_f:
-                    chip8->keypad[0xE] = 1;
-                    break;
-                case SDLK_z:
-                    chip8->keypad[0xA] = 1;
-                    break;
-                case SDLK_x:
-                    chip8->keypad[0x0] = 1;
-                    break;
-                case SDLK_c:
-                    chip8->keypad[0xB] = 1;
-                    break;
-                case SDLK_v:
-                    chip8->keypad[0xF] = 1;
-                    break;
-                default:
-                    break;
-            }
-        } else
-        if (event.type == SDL_KEYUP){
-            switch(event.key.keysym.sym){
-                case SDLK_1:
-                    chip8->keypad[0x1] = 0;
-                    break;
-                case SDLK_2:
-                    chip8->keypad[0x2] = 0;
-                    break;
-                case SDLK_3:
-                    chip8->keypad[0x3] = 0;
-                    break;
-                case SDLK_4:
-                    chip8->keypad[0xC] = 0;
-                    break;
-                case SDLK_q:
-                    chip8->keypad[0x4] = 0;
-                    break;
-                case SDLK_w:
-                    chip8->keypad[0x5] = 0;
-                    break;
-                case SDLK_e:
-                    chip8->keypad[0x6] = 0;
-                    break;
-                case SDLK_r:
-                    chip8->keypad[0xD] = 0;
-                    break;
-                case SDLK_a:
-                    chip8->keypad[0x7] = 0;
-                    break;
-                case SDLK_s:
-                    chip8->keypad[0x8] = 0;
-                    break;
-                case SDLK_d:
-                    chip8->keypad[0x9] = 0;
-                    break;
-                case SDLK_f:
-                    chip8->keypad[0xE] = 0;
-                    break;
-                case SDLK_z:
-                    chip8->keypad[0xA] = 0;
-                    break;
-                case SDLK_x:
-                    chip8->keypad[0x0] = 0;
-                    break;
-                case SDLK_c:
-                    chip8->keypad[0xB] = 0;
-                    break;
-                case SDLK_v:
-                    chip8->keypad[0xF] = 0;
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
 }
 int main(int argc, char* argv[]) {
     (void) argc;
