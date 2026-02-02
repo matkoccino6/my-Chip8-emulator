@@ -259,8 +259,7 @@ void emulate_instruction(chip8_t* chip8){
         printf("Unimplemented instruction: 0x%04x, PC: 0x%04x\n", chip8->instruction.opcode, chip8->program_counter);
         break;
     }
-    if(chip8->timer > 0)
-        chip8->timer--;
+    
 }
 int loadRom(chip8_t* chip8, const char * romname){
     
@@ -329,6 +328,10 @@ void update_screen(const chip8_t* chip8, SDL_Renderer* renderer){
     
     SDL_RenderPresent(renderer);
 }
+void update_timer(chip8_t* chip8){
+    if(chip8->timer > 0)
+            chip8->timer--;
+}
 int main(int argc, char* argv[]) {
     (void) argc;
     (void) argv;
@@ -355,9 +358,15 @@ int main(int argc, char* argv[]) {
     if(!loadRom(&chip8, romname)) exit(EXIT_FAILURE);
     while(true){
         sdl_input_handle(&chip8);
-        emulate_instruction(&chip8);
+        Uint64 start = SDL_GetPerformanceCounter();
+        for(size_t i = 0; i < 700/60; i++)
+            emulate_instruction(&chip8);
+        Uint64 end = SDL_GetPerformanceCounter();
+        double time_elapsed = (double)((end-start) * 1000) / SDL_GetPerformanceFrequency();
+        if(time_elapsed < 16.67)
+            SDL_Delay(16.67 - time_elapsed);
         update_screen(&chip8, renderer);
-        SDL_Delay(16);
+        update_timer(&chip8);
     }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
