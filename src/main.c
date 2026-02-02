@@ -42,7 +42,7 @@ void emulate_instruction(chip8_t* chip8){
     chip8->instruction.N = chip8->instruction.opcode & 0x0F;
     chip8->instruction.X = (chip8->instruction.opcode >> 8) & 0x0F;
     chip8->instruction.Y = (chip8->instruction.opcode >> 4) & 0x0F;
-    //printf("Opcode: %X Program counter: %X Delay Timer: %d \n", chip8->instruction.opcode, chip8->program_counter, chip8->timer);
+    //printf("Opcode: %X Program counter: %X Delay Timer: %d \n", chip8->instruction.opcode, chip8->program_counter-2, chip8->timer);
     switch ((chip8->instruction.opcode >> 12) & 0x0F)
     {
     case 0x00:
@@ -160,6 +160,10 @@ void emulate_instruction(chip8_t* chip8){
         //set I to address NNN
         chip8->index_register = chip8->instruction.NNN;
         break;
+    case 0xB:
+        //Jumps to Address V0 + NNN
+        chip8->program_counter = chip8->registers[0x0] + chip8->instruction.NNN;
+        break;
     case 0xC:
         //Randomly generate a number between 0 and 255 and & with NN const
         chip8->registers[chip8->instruction.X] = (rand() % 255) & chip8->instruction.NN;
@@ -189,6 +193,18 @@ void emulate_instruction(chip8_t* chip8){
 
             }
             if (++Y_coord >= 32) break;
+        }
+        break;
+    case 0xE:
+        if(chip8->instruction.NN == 0x9E){
+            //Skips instruction if key in Vx is pressed
+            if(chip8->keypad[chip8->registers[chip8->instruction.X]])
+                chip8->program_counter += 2;
+        } else
+        if(chip8->instruction.NN == 0xA1){
+            //Skips instruction if key in Vx is not pressed
+            if(!chip8->keypad[chip8->registers[chip8->instruction.X]])
+                chip8->program_counter += 2;
         }
         break;
     case 0xF:
@@ -335,7 +351,6 @@ int main(int argc, char* argv[]) {
     chip8_t chip8 = {
         0
     };
-    //char romname[100] = "./Test Roms/IBM Logo.ch8";
     char * romname = argv[1];
     if(!loadRom(&chip8, romname)) exit(EXIT_FAILURE);
     while(true){
