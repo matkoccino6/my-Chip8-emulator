@@ -8,12 +8,27 @@ on:
     branches: [ "main" ]
 
 jobs:
+  
   build:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup GCC
+      uses: Dup4/actions-setup-gcc@v1
+      with:
+        version: latest
+
+    - name: Install SDL2
+      uses: libsdl-org/setup-sdl@main
+      id: sdl
+      with:
+        install-linux-dependencies: true
+        version: 2-latest
+    
     - name: make
       run: make
     - name: make check
