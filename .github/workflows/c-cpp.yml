@@ -17,17 +17,19 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup GCC
-      uses: Dup4/actions-setup-gcc@v1
+    - name: Setup latest GCC
+      uses: egor-tensin/setup-gcc@v1
       with:
         version: latest
-
+        platform: x64
+        
     - name: Install SDL2
       uses: libsdl-org/setup-sdl@main
       id: sdl
       with:
         install-linux-dependencies: true
         version: 2-latest
+        version-sdl-image: 2-latest
     
     - name: make
       run: make
