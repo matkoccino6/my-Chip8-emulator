@@ -42,11 +42,6 @@ jobs:
         version: 2-latest
         version-sdl-image: 2-latest
 
-    - name: Set environment variables
-      run: |
-        echo "export PKG_CONFIG_PATH=/path/to/your/sdl2/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-        echo "export PATH=/path/to/your/sdl2/bin:$PATH" >> $GITHUB_ENV
-
     - name: make
       run: make
     - name: make check
