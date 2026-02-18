@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include "SDL2/SDL.h"
 #include "main.h"
 #include "input.h"
@@ -220,6 +224,10 @@ void emulate_instruction(chip8_t* chip8){
             //Set delay timer to Vx
             chip8->timer = chip8->registers[chip8->instruction.X];
         } else
+        if (chip8->instruction.NN == 0x18){
+            //Set sound timer to Vx
+            chip8->sound_timer = chip8->registers[chip8->instruction.X];
+        } else
         if(chip8->instruction.NN == 0x0A){
             // Await key press and store in Vx(blocking op), timers continue as usual
             input_handle(chip8);
@@ -331,11 +339,32 @@ void update_screen(const chip8_t* chip8, SDL_Renderer* renderer){
 void update_timer(chip8_t* chip8){
     if(chip8->timer > 0)
             chip8->timer--;
+    if(chip8->sound_timer > 0)
+            chip8->sound_timer--;
+}
+
+static void audio_callback(void* userdata, Uint8* stream, int len){
+    chip8_t* chip8 = (chip8_t*) userdata;
+    float* buffer = (float*) stream;
+    int samples = len / sizeof(float);
+    static double phase = 0.0;
+    const double frequency = 440.0; // A4
+    const double sample_rate = 44100.0;
+    const double phase_inc = 2.0 * M_PI * frequency / sample_rate;
+    for (int i = 0; i < samples; ++i){
+        if (chip8->sound_timer > 0){
+            buffer[i] = (float)(0.2 * sin(phase));
+        } else {
+            buffer[i] = 0.0f;
+        }
+        phase += phase_inc;
+        if (phase > 2.0 * M_PI) phase -= 2.0 * M_PI;
+    }
 }
 int main(int argc, char* argv[]) {
     (void) argc;
     (void) argv;
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         printf("SDL_Init Error: %s\n", SDL_GetError());
         return 1;
     }
@@ -351,9 +380,22 @@ int main(int argc, char* argv[]) {
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
 
-    chip8_t chip8 = {
-        0
-    };
+    chip8_t chip8 = { 0 };
+    SDL_AudioDeviceID dev = 0;
+    SDL_AudioSpec spec;
+    SDL_zero(spec);
+    spec.freq = 44100;
+    spec.format = AUDIO_F32SYS;
+    spec.channels = 1;
+    spec.samples = 2048;
+    spec.callback = audio_callback;
+    spec.userdata = &chip8;
+    dev = SDL_OpenAudioDevice(NULL, 0, &spec, NULL, 0);
+    if (dev == 0) {
+        SDL_Log("Failed to open audio: %s", SDL_GetError());
+    } else {
+        SDL_PauseAudioDevice(dev, 0);
+    }
     char * romname = argv[1];
     if(!loadRom(&chip8, romname)) exit(EXIT_FAILURE);
     while(true){
